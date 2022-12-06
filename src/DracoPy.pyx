@@ -40,6 +40,26 @@ class DracoPointCloud:
         return 3
 
     @property
+    def intensity(self):
+        intensity_ = self.data_struct['intensity']
+        return np.array(intensity_)
+    
+    @property
+    def values(self):
+        values_ = self.data_struct['values']
+        num_components_ = self.data_struct['num_components']
+        for key in values_.keys():
+            N_COMPONENTS = num_components_[key]
+            N = len(values_[key]) // num_components_[key]
+            values_[key] = np.array(values_[key]).reshape((N,N_COMPONENTS))
+        return values_
+    
+    @property
+    def types(self):
+        types_ = self.data_struct['types']
+        return types_
+
+    @property
     def points(self):
         points_ = self.data_struct['points']
         N = len(points_) // 3

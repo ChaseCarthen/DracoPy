@@ -2,6 +2,8 @@
 from libcpp.vector cimport vector
 from libc.stdint cimport uint8_t, uint32_t
 from libcpp cimport bool
+from libcpp.map cimport map
+from libcpp.string cimport string
 
 cimport numpy
 import numpy as np
@@ -25,13 +27,25 @@ cdef extern from "DracoPy.h" namespace "DracoFunctions":
         double quantization_range
         vector[double] quantization_origin
 
+        vector[float] intensity
+        map[int,vector[float] ] values
+        map[int,string] names
+        map[int,int] types
+        map[int,int] num_components
+
+
         # Represents the decoding success or error message
         decoding_status decode_status
         vector[uint8_t] colors
 
     cdef struct MeshObject:
+        vector[float] intensity
         vector[float] points
         vector[unsigned int] faces
+        map[int,vector[float] ] values
+        map[int,string] names
+        map[int,int] types
+        map[int,int] num_components
 
         # TODO: add support for normals, which are not currently supported.
         vector[float] normals

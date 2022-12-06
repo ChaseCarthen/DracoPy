@@ -1,6 +1,6 @@
 #ifndef __DRACOPY_H__
 #define __DRACOPY_H__
-
+#include <iostream>
 #include<algorithm>
 #include<cmath>
 #include<vector>
@@ -13,6 +13,8 @@
 #include "draco/core/vector_d.h"
 #include "draco/mesh/triangle_soup_mesh_builder.h"
 #include "draco/point_cloud/point_cloud_builder.h"
+
+using namespace std;
 
 namespace DracoFunctions {
 
@@ -30,6 +32,12 @@ namespace DracoFunctions {
 
   struct PointCloudObject {
     std::vector<float> points;
+    std::vector<float> intensity;
+
+    std::map<int,vector<float>> values;
+    std::map<int,string> names;
+    std::map<int,int> types;
+    std::map<int,int> num_components;
 
     // Encoding options stored in metadata
     bool encoding_options_set;
@@ -68,6 +76,35 @@ namespace DracoFunctions {
       return (obj);\
     }
 
+  void GetValues(MeshObject& meshObject,draco::Mesh *mesh,draco::GeometryAttribute::Type attribute)
+  {
+    if(mesh->NumNamedAttributes(attribute) > 0)
+    {
+      for(int i = 0; i < mesh->NumNamedAttributes(attribute); i++)
+      {
+          
+          const int att_id = mesh->GetNamedAttributeId(attribute, i);
+          const auto *const att = mesh->attribute(att_id);
+          meshObject.values[att_id].reserve(mesh->num_points()*att->num_components());
+          
+          meshObject.num_components[att_id] = att->num_components();
+          meshObject.types[att_id] = attribute;
+          float* val = new float[att->num_components()];
+          for (draco::PointIndex v(0); v < mesh->num_points(); ++v) {
+            if (!att->ConvertValue<float>(att->mapped_index(v), &val[0])) {
+              meshObject.decode_status = no_position_attribute;
+            }
+            for(int j = 0; j < att->num_components(); j++)
+            {
+              meshObject.values[att_id].push_back(val[j]);
+            }
+          }
+          delete[] val;
+
+      }
+    }
+  }
+
   MeshObject decode_buffer(const char *buffer, std::size_t buffer_len) {
     MeshObject meshObject;
     draco::DecoderBuffer decoderBuffer;
@@ -94,6 +131,7 @@ namespace DracoFunctions {
       // This is okay because draco::Mesh is a subclass of
       // draco::PointCloud
       mesh = static_cast<draco::Mesh*>(in_pointcloud.get());
+
     }
     else if (geotype == draco::EncodedGeometryType::TRIANGULAR_MESH) {
       auto statusor = decoder.DecodeMeshFromBuffer(&decoderBuffer);
@@ -104,6 +142,7 @@ namespace DracoFunctions {
     else {
       throw std::runtime_error("Should never be reached.");
     }
+
 
     const int pos_att_id = mesh->GetNamedAttributeId(draco::GeometryAttribute::POSITION);
     if (pos_att_id < 0) {
@@ -123,6 +162,31 @@ namespace DracoFunctions {
       meshObject.points.push_back(pos_val[1]);
       meshObject.points.push_back(pos_val[2]);
     }
+
+    if(mesh->NumNamedAttributes(draco::GeometryAttribute::GENERIC) > 0)
+    {
+      const int int_att_id =
+      mesh->GetNamedAttributeId(draco::GeometryAttribute::GENERIC);
+      meshObject.intensity.reserve(mesh->num_points());
+      const auto *const intensity_att = mesh->attribute(int_att_id);
+      std::array<float, 1> int_val;
+      for (draco::PointIndex v(0); v < mesh->num_points(); ++v) {
+        if (!intensity_att->ConvertValue<float, 1>(intensity_att->mapped_index(v), &int_val[0])) {
+          meshObject.decode_status = no_position_attribute;
+          return meshObject;
+        }
+        meshObject.intensity.push_back(int_val[0]);
+      }
+    }
+
+    /*
+      Going through Position, Normal,Color,TEX_COORD,Generic
+    */
+   GetValues(meshObject,mesh,draco::GeometryAttribute::POSITION);
+   GetValues(meshObject,mesh,draco::GeometryAttribute::NORMAL);
+   GetValues(meshObject,mesh,draco::GeometryAttribute::TEX_COORD);
+   GetValues(meshObject,mesh,draco::GeometryAttribute::GENERIC);
+    
 
     const int color_att_id = mesh->GetNamedAttributeId(draco::GeometryAttribute::COLOR);
     if (color_att_id >= 0) {
